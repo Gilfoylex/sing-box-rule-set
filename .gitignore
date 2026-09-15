@@ -1,0 +1,5 @@
+node_modules/
+clash/
+sing-box/*.json
+.vscode/
+*.exe
