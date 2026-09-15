@@ -23,5 +23,5 @@ Clash 的通配符 * 一次只能匹配一级域名
 
 
 # Release
-1. 直连规则: https://raw.githubusercontent.com/Gilfoylex/sing-box-rule-set/release/sing-box/direct-site.srs
-2. 代理规则: https://raw.githubusercontent.com/Gilfoylex/sing-box-rule-set/release/sing-box/proxy-site.srs
+1. 直连规则: https://raw.githubusercontent.com/Gilfoylex/sing-box-rule-set/release/direct-site.srs
+2. 代理规则: https://raw.githubusercontent.com/Gilfoylex/sing-box-rule-set/release/proxy-site.srs
