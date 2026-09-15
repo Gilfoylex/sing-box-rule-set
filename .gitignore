@@ -1,6 +1,4 @@
 node_modules/
 clash/*.yaml
-sing-box/*.json
-sing-box/*.srs
 .vscode/
 *.exe

@@ -164,10 +164,10 @@ const proxyUrl = "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/rel
 
 function main() {
   const directYaml = path.join(import.meta.dirname, "clash/direct.yaml")
-  const dierctJson = path.join(import.meta.dirname, 'sing-box/direct-site.json');
-  converter(directUrl, directYaml, dierctJson, false);
+  const dierctJson = path.join(import.meta.dirname, 'direct-site.json');
+  converter(directUrl, directYaml, dierctJson, true);
   const proxyYaml = path.join(import.meta.dirname, "clash/proxy.yaml")
-  const proxyJson = path.join(import.meta.dirname, 'sing-box/proxy-site.json');
+  const proxyJson = path.join(import.meta.dirname, 'proxy-site.json');
   converter(proxyUrl, proxyYaml, proxyJson, true);
 }
 
