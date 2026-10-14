@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises'
-import { pipeline } from 'node:stream/promises';
 import path from 'node:path'
 import { load } from 'js-yaml'
 
@@ -87,44 +86,10 @@ function escapeRegex(str) {
 }
 
 
-// ===== 测试 =====
-
-const payload = [
-  "+.000webhost.com",
-  "+.0rz.tw",
-  ".baidu.com",
-  "baidu.com",
-  "*.microsoft.com",
-  "*.*.microsoft.com",
-  "*.*.*.example.com"
-];
-
-console.log(
-  JSON.stringify(convertClashPayload(payload), null, 2)
-);
-
-async function downloadFile(url, outputPath) {
-  const response = await fetch(url, {
-    redirect: 'follow'
-  });
-
-  if (!response.ok) {
-    throw new Error(`下载失败: HTTP ${response.status}`);
-  }
-
-  if (!response.body) {
-    throw new Error('Response body 为空');
-  }
-
-  await pipeline(
-    response.body,
-    fs.createWriteStream(outputPath)
-  );
-}
-
 async function downloadMemory(url) {
   const response = await fetch(url, {
-    redirect: 'follow'
+    redirect: 'follow',
+    signal: AbortSignal.timeout(60_000)
   });
 
   if (!response.ok) {
@@ -141,35 +106,42 @@ async function downloadMemory(url) {
 
 
 async function converter(url, inPath, outPath, download = true) {
-  try {
-    let content = "";
-    if (download) {
-      content = await downloadMemory(url);
-      await fs.writeFile(inPath, content, 'utf8')
-    }
-    else {
-      content = await fs.readFile(inPath, 'utf8');
-    }
-    
-    const ruleYaml = load(content);
-    const singboxRule = convertClashPayload(ruleYaml.payload);
-    await fs.writeFile(outPath, JSON.stringify(singboxRule, null, 2), 'utf8')
-  } catch (error) {
-     console.log(error)
+  let content = "";
+  if (download) {
+    content = await downloadMemory(url);
+    await fs.mkdir(path.dirname(inPath), { recursive: true });
+    await fs.writeFile(inPath, content, 'utf8')
   }
+  else {
+    content = await fs.readFile(inPath, 'utf8');
+  }
+
+  const ruleYaml = load(content.toString());
+  if (!Array.isArray(ruleYaml?.payload) || ruleYaml.payload.length === 0) {
+    throw new Error(`规则 payload 为空或格式错误: ${url}`);
+  }
+
+  const singboxRule = convertClashPayload(ruleYaml.payload);
+  if (Object.keys(singboxRule.rules[0]).length === 0) {
+    throw new Error(`转换后没有有效规则: ${url}`);
+  }
+  await fs.writeFile(outPath, JSON.stringify(singboxRule, null, 2), 'utf8')
 }
 
 const directUrl = "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/direct.txt"
 const proxyUrl = "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/proxy.txt"
 
-function main() {
+async function main() {
   const directYaml = path.join(import.meta.dirname, "clash/direct.yaml")
-  const dierctJson = path.join(import.meta.dirname, 'direct-site.json');
-  converter(directUrl, directYaml, dierctJson, true);
+  const directJson = path.join(import.meta.dirname, 'direct-site.json');
+  await converter(directUrl, directYaml, directJson, true);
   const proxyYaml = path.join(import.meta.dirname, "clash/proxy.yaml")
   const proxyJson = path.join(import.meta.dirname, 'proxy-site.json');
-  converter(proxyUrl, proxyYaml, proxyJson, true);
+  await converter(proxyUrl, proxyYaml, proxyJson, true);
 }
 
 
-main();
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
