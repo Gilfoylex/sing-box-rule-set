@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isIP } from 'node:net'
 import { load } from 'js-yaml'
 
 
@@ -128,8 +129,58 @@ async function converter(url, inPath, outPath, download = true) {
   await fs.writeFile(outPath, JSON.stringify(singboxRule, null, 2), 'utf8')
 }
 
+function isValidCidr(cidr, ipVersion) {
+  const match = cidr.match(/^(.+)\/(\d{1,3})$/);
+  if (!match) return false;
+
+  const maxPrefixLength = ipVersion === 4 ? 32 : 128;
+  return isIP(match[1]) === ipVersion && Number(match[2]) <= maxPrefixLength;
+}
+
+function parseIpList(content, ipVersion) {
+  const addresses = content.toString()
+    .split(/\r?\n/)
+    .map(line => line.split('#', 1)[0].trim())
+    .filter(line => line.length > 0);
+
+  if (addresses.length === 0) {
+    throw new Error(`IPv${ipVersion} 地址列表为空`);
+  }
+
+  for (const address of addresses) {
+    if (!isValidCidr(address, ipVersion)) {
+      throw new Error(`IPv${ipVersion} CIDR 格式错误: ${address}`);
+    }
+  }
+
+  return addresses;
+}
+
+function formatMainlandSet(addresses, ipVersion) {
+  return `set mainland_ipv${ipVersion} {
+    type ipv${ipVersion}_addr
+    flags interval
+    auto-merge
+    elements = {
+        ${addresses.join(',\n        ')}
+    }
+}`;
+}
+
+async function generateMainlandSets(outputPath) {
+  const ipv4Content = await downloadMemory(chinaIpv4Url);
+  const ipv6Content = await downloadMemory(chinaIpv6Url);
+  const ipv4Addresses = parseIpList(ipv4Content, 4);
+  const ipv6Addresses = parseIpList(ipv6Content, 6);
+  const content = `${formatMainlandSet(ipv4Addresses, 4)}\n\n${formatMainlandSet(ipv6Addresses, 6)}\n`;
+
+  await fs.writeFile(outputPath, content, 'utf8');
+}
+
 const directUrl = "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/direct.txt"
 const proxyUrl = "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/proxy.txt"
+const chinaIpv4Url = "https://raw.githubusercontent.com/immortalwrt/homeproxy/master/root/etc/homeproxy/resources/china_ip4.txt"
+const chinaIpv6Url = "https://raw.githubusercontent.com/immortalwrt/homeproxy/master/root/etc/homeproxy/resources/china_ip6.txt"
 
 async function main() {
   const directYaml = path.join(import.meta.dirname, "clash/direct.yaml")
@@ -138,6 +189,8 @@ async function main() {
   const proxyYaml = path.join(import.meta.dirname, "clash/proxy.yaml")
   const proxyJson = path.join(import.meta.dirname, 'proxy-site.json');
   await converter(proxyUrl, proxyYaml, proxyJson, true);
+  const mainlandSets = path.join(import.meta.dirname, 'mainland-ip-sets.nft');
+  await generateMainlandSets(mainlandSets);
 }
 
 
